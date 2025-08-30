@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import ApiService from '../services/api.js';
 
 function Register() {
   const [formData, setFormData] = useState({
-    name: '',
+    full_name: '',
     email: '',
     password: '',
     confirmPassword: ''
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -15,18 +18,45 @@ function Register() {
       ...formData,
       [e.target.name]: e.target.value
     });
+    // Clear error when user starts typing
+    if (error) setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+
+    // Validation
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match!');
+      setError('Passwords do not match!');
       return;
     }
-    // Add registration logic here
-    console.log('Registration attempt:', formData);
-    // For now, redirect to login
-    navigate('/login');
+
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Prepare data for API (remove confirmPassword)
+      const registrationData = {
+        full_name: formData.full_name,
+        email: formData.email,
+        password: formData.password
+      };
+
+      await ApiService.register(registrationData);
+      
+      // Registration successful
+      alert('Registration successful! Please login with your credentials.');
+      navigate('/login');
+    } catch (error) {
+      setError(error.message || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -40,23 +70,32 @@ function Register() {
             Join Freelance AI Manager
           </p>
         </div>
+        
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-4">
+              <div className="text-sm text-red-600">{error}</div>
+            </div>
+          )}
+
           <div className="space-y-4">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="full_name" className="block text-sm font-medium text-gray-700">
                 Full Name
               </label>
               <input
-                id="name"
-                name="name"
+                id="full_name"
+                name="full_name"
                 type="text"
                 required
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 placeholder="Enter your full name"
-                value={formData.name}
+                value={formData.full_name}
                 onChange={handleChange}
+                disabled={loading}
               />
             </div>
+            
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Email Address
@@ -70,8 +109,10 @@ function Register() {
                 placeholder="Enter your email"
                 value={formData.email}
                 onChange={handleChange}
+                disabled={loading}
               />
             </div>
+            
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
@@ -82,11 +123,14 @@ function Register() {
                 type="password"
                 required
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Create a password"
+                placeholder="Create a password (min 6 characters)"
                 value={formData.password}
                 onChange={handleChange}
+                disabled={loading}
+                minLength={6}
               />
             </div>
+            
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
                 Confirm Password
@@ -100,6 +144,7 @@ function Register() {
                 placeholder="Confirm your password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
+                disabled={loading}
               />
             </div>
           </div>
@@ -107,9 +152,10 @@ function Register() {
           <div>
             <button
               type="submit"
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              disabled={loading}
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create Account
+              {loading ? 'Creating Account...' : 'Create Account'}
             </button>
           </div>
 

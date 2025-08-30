@@ -1,117 +1,135 @@
-const API_BASE = 'http://localhost:5000/api'
+// src/services/api.js - Updated for Flask backend
+const API_BASE_URL = 'http://localhost:5000/api';
 
 class ApiService {
-  async request(endpoint, options = {}) {
-    const url = `${API_BASE}${endpoint}`
-    const config = {
+  // Auth endpoints
+  static async register(userData) {
+    const response = await fetch(`${API_BASE_URL}/register`, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...options.headers,
       },
-      credentials: 'include',
-      ...options,
+      credentials: 'include', // Include cookies for session management
+      body: JSON.stringify(userData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Registration failed');
     }
 
-    if (config.body && typeof config.body !== 'string') {
-      config.body = JSON.stringify(config.body)
+    return response.json();
+  }
+
+  static async login(credentials) {
+    const response = await fetch(`${API_BASE_URL}/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // Include cookies for session management
+      body: JSON.stringify(credentials),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Login failed');
     }
 
+    const data = await response.json();
+    // Store the user data in localStorage (the token is just for frontend compatibility)
+    if (data.access_token && data.user) {
+      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+    }
+    return data;
+  }
+
+  static async logout() {
     try {
-      const response = await fetch(url, config)
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Something went wrong')
-      }
-
-      return data
+      await fetch(`${API_BASE_URL}/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
     } catch (error) {
-      console.error('API Error:', error)
-      throw error
+      console.error('Logout request failed:', error);
+    } finally {
+      // Always clear local storage
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
     }
   }
 
-  // Auth
-  async register(userData) {
-    return this.request('/register', {
+  static getAuthToken() {
+    return localStorage.getItem('token');
+  }
+
+  static getCurrentUser() {
+    const user = localStorage.getItem('user');
+    return user ? JSON.parse(user) : null;
+  }
+
+  static isAuthenticated() {
+    return !!this.getAuthToken() && !!this.getCurrentUser();
+  }
+
+  // Helper method to make authenticated requests
+  static async authenticatedRequest(url, options = {}) {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    const response = await fetch(`${API_BASE_URL}${url}`, {
+      ...options,
+      headers,
+      credentials: 'include', // Include cookies for session
+    });
+
+    if (response.status === 401) {
+      // Session expired or invalid
+      this.logout();
+      window.location.href = '/login';
+      throw new Error('Authentication required');
+    }
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Request failed');
+    }
+
+    return response.json();
+  }
+
+  // Dashboard endpoints
+  static async getAnalytics(userId) {
+    return this.authenticatedRequest(`/analytics/${userId}`);
+  }
+
+  static async getJobs(userId) {
+    return this.authenticatedRequest(`/jobs/${userId}`);
+  }
+
+  static async searchJobs(userId) {
+    return this.authenticatedRequest(`/jobs/search/${userId}`, {
       method: 'POST',
-      body: userData,
-    })
+    });
   }
 
-  async login(credentials) {
-    return this.request('/login', {
+  static async getUserProjects(userId) {
+    return this.authenticatedRequest(`/projects/${userId}`);
+  }
+
+  static async getSkillGaps(userId) {
+    return this.authenticatedRequest(`/skill-gaps/${userId}`);
+  }
+
+  static async generateProposal(data) {
+    return this.authenticatedRequest('/proposals/generate', {
       method: 'POST',
-      body: credentials,
-    })
-  }
-
-  async logout() {
-    return this.request('/logout', { method: 'POST' })
-  }
-
-  // Jobs
-  async searchJobs(userId) {
-    return this.request(`/jobs/search/${userId}`)
-  }
-
-  async getJobs(userId) {
-    return this.request(`/jobs/${userId}`)
-  }
-
-  // Proposals
-  async generateProposal(data) {
-    return this.request('/proposals/generate', {
-      method: 'POST',
-      body: data,
-    })
-  }
-
-  async getUserProposals(userId) {
-    return this.request(`/proposals/${userId}`)
-  }
-
-  // Projects
-  async createProject(projectData) {
-    return this.request('/projects', {
-      method: 'POST',
-      body: projectData,
-    })
-  }
-
-  async getUserProjects(userId) {
-    return this.request(`/projects/${userId}`)
-  }
-
-  // Time tracking
-  async logTime(timeData) {
-    return this.request('/time-logs', {
-      method: 'POST',
-      body: timeData,
-    })
-  }
-
-  // Analytics
-  async getAnalytics(userId) {
-    return this.request(`/analytics/${userId}`)
-  }
-
-  // Skill gaps
-  async getSkillGaps(userId) {
-    return this.request(`/skill-gaps/${userId}`)
-  }
-
-  // Communication
-  async getSuggestion(data) {
-    return this.request('/communication/suggest', {
-      method: 'POST',
-      body: data,
-    })
-  }
-
-  async test() {
-    return this.request('/test')
+      body: JSON.stringify(data),
+    });
   }
 }
 
-export default new ApiService()
+export default ApiService;
